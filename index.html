@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Codeforces — Solutions Index</title>
 
-  <!-- Monaco CSS (from your StackOverflow example) -->
+  <!-- Monaco CSS (same approach as your StackOverflow example) -->
   <link rel="stylesheet" data-name="vs/editor/editor.main"
     href="https://unpkg.com/monaco-editor@0.34.0/min/vs/editor/editor.main.css" />
 
@@ -91,20 +91,16 @@
             <div class="editor-title" id="editorTitle">Loading...</div>
             <div style="margin-left:auto;color:var(--muted);font-size:13px" id="rawLinkWrap"></div>
           </div>
-          <div id="editor"> <!-- Monaco mounts here --> </div>
+          <div id="editor" aria-label="code editor area"> <!-- Monaco mounts here --> </div>
         </div>
       </div>
     </main>
   </div>
 
-  <!--
-    We use the AMD loader approach from your StackOverflow sample (unpkg v0.34.0).
-    This ensures Monaco's styles and scripts are loaded in the same way.
-  -->
   <script>
     // CONFIG
     const MANIFEST = './problems.json'; // required in repo root
-    const SOURCE_PREFIX = './Codeforces/'; // folder with files like 891E.cpp
+    const SOURCE_PREFIX = './Codeforces/'; // folder with files like 4A.cpp
 
     // small helpers
     function el(tag, attrs = {}, text = '') {
@@ -114,7 +110,7 @@
       return e;
     }
 
-    // convert lang code to pretty display
+    // pretty language mapping
     function mapLangDisplay(lang){
       if(!lang) return '';
       const l = String(lang).toLowerCase();
@@ -126,7 +122,7 @@
       return lang;
     }
 
-    // best-effort Codeforces link: split like 891E => 891 / E
+    // best-effort Codeforces link
     function codeforcesLinkFromId(id){
       if(!id) return 'https://codeforces.com';
       const m = String(id).match(/^(\d+)([A-Za-z]+)$/);
@@ -135,7 +131,6 @@
         const index = m[2];
         return `https://codeforces.com/problemset/problem/${contest}/${index}`;
       }
-      // fallback: try direct problemset URL
       return `https://codeforces.com/problemset/problem/${id}`;
     }
 
@@ -146,40 +141,26 @@
       const tbody = document.getElementById('tbody');
       const tr = document.createElement('tr');
 
-      const td1 = document.createElement('td');
-      td1.innerHTML = `<div class="tag">${item.id}</div>`;
-
-      const td2 = document.createElement('td');
-      td2.textContent = item.title || '';
-
-      const tdRating = document.createElement('td');
-      tdRating.textContent = (typeof item.rating === 'number' ? item.rating : (item.rating || ''));
-
-      const tdLang = document.createElement('td');
-      tdLang.textContent = mapLangDisplay(item.lang || 'cpp');
+      const td1 = document.createElement('td'); td1.innerHTML = `<div class="tag">${item.id}</div>`;
+      const td2 = document.createElement('td'); td2.textContent = item.title || '';
+      const tdRating = document.createElement('td'); tdRating.textContent = (typeof item.rating === 'number' ? item.rating : (item.rating || ''));
+      const tdLang = document.createElement('td'); tdLang.textContent = mapLangDisplay(item.lang || 'cpp');
 
       const td3 = document.createElement('td');
 
-      // compute filename from id + '.' + lang (default 'cpp')
       const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
       const filename = `${item.id}.${lang}`;
 
+      // include lang in url explicitly
       const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}&lang=${encodeURIComponent(lang)}`, class: 'linkbtn' }, 'Open');
       viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id, lang); });
 
       const cfLink = el('a', { href: codeforcesLinkFromId(item.id), target: '_blank', class: 'linkbtn' }, 'CF');
-
       const fileLink = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Code');
 
-      td3.appendChild(viewLink);
-      td3.appendChild(cfLink);
-      td3.appendChild(fileLink);
+      td3.appendChild(viewLink); td3.appendChild(cfLink); td3.appendChild(fileLink);
 
-      tr.appendChild(td1);
-      tr.appendChild(td2);
-      tr.appendChild(tdRating);
-      tr.appendChild(tdLang);
-      tr.appendChild(td3);
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(tdRating); tr.appendChild(tdLang); tr.appendChild(td3);
       tbody.appendChild(tr);
     }
 
@@ -194,7 +175,7 @@
       });
     }
 
-    // open problem in editor view (improved for Monaco)
+    // open problem in editor view (uses window.monacoEditor)
     function openProblem(id, overrideLang){
       const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
       const lang = overrideLang || new URLSearchParams(location.search).get('lang') || langFromManifest || 'cpp';
@@ -206,8 +187,8 @@
       document.getElementById('listView').style.display = 'none';
       document.getElementById('editorView').style.display = 'block';
 
-      // make sure editor container can measure correctly
-      setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout failed', e);} }, 50);
+      // try to layout the monaco editor after it's visible
+      setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout failed', e);} }, 50);
 
       const titleEl = document.getElementById('editorTitle');
       const item = manifest.find(x => x.id === id) || { id };
@@ -234,11 +215,11 @@
 
         loadMonacoEditor(code, filename, monacoLang);
 
-        // ensure layout after loading content (small delay helps in many browsers)
-        setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
+        // ensure layout after loading content (small delay helps)
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
       }).catch(err => {
         loadMonacoEditor('// Could not load file: ' + err.message + '\n', filename, 'plaintext');
-        setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout err', e);} }, 120);
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout err', e);} }, 120);
       });
     }
 
@@ -266,16 +247,16 @@
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
 
-    // === Monaco AMD loader config (from sample) ===
+    // === Monaco AMD loader config (stackOverflow style) ===
+    // define require paths for AMD loader (used by loader.js)
     var require = { paths: { vs: 'https://unpkg.com/monaco-editor@0.34.0/min/vs' } };
 
-    // Monaco loader + editor (robust, builds on the sample)
-    let monacoLoaded = false;
+    // Monaco loader + editor (robust, creates named models and avoids clobbering DOM)
+    let monacoLoading = false;
     function loadMonacoEditor(code, filename, monacoLang){
-      // create or update the editor with a model — using models keeps language modes correct
+      // inner helper: create or attach model and create/attach the editor instance
       function createModelAndAttach(text, language){
         try{
-          // create a stable URI per filename so model can be reused
           const modelUri = monaco.Uri.parse('inmemory://model/' + filename);
           let model = monaco.editor.getModel(modelUri);
           if(model){
@@ -284,8 +265,10 @@
           } else {
             model = monaco.editor.createModel(text, language, modelUri);
           }
-          if(!window.editor){
-            window.editor = monaco.editor.create(document.getElementById('editor'), {
+
+          if(!window.monacoEditor || typeof window.monacoEditor.getModel !== 'function'){
+            // create monacoEditor instance and attach model
+            window.monacoEditor = monaco.editor.create(document.getElementById('editor'), {
               model: model,
               language: language,
               theme: 'vs-dark',
@@ -295,38 +278,40 @@
               minimap: { enabled: false }
             });
           } else {
-            window.editor.setModel(model);
+            window.monacoEditor.setModel(model);
           }
-          // ensure layout happens after attaching model
-          setTimeout(()=>{ try{ window.editor.layout(); }catch(e){} }, 60);
+
+          // ensure layout after attach
+          setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 60);
         }catch(err){
           console.error('createModelAndAttach error', err);
-          // fallback: set value directly if Monaco API partially available
-          try{ window.editor.setValue(text); }catch(e){}
+          try{ document.getElementById('editor').textContent = text; }catch(e){}
         }
       }
 
-      // If Monaco already loaded and available, attach immediately
-      if(window.editor && typeof monaco !== 'undefined'){
-        createModelAndAttach(code, monacoLang || 'plaintext');
-        return;
+      // If monaco is already loaded (and we have the API), attach immediately
+      if(typeof monaco !== 'undefined' && typeof monaco.editor !== 'undefined'){
+        try{
+          createModelAndAttach(code, monacoLang || 'plaintext');
+          return;
+        }catch(e){
+          console.warn('attach immediate failed, proceeding to loader', e);
+        }
       }
 
-      // If monaco is currently loading, wait and try again
-      if(monacoLoaded){
+      // If loader in progress, wait and retry
+      if(monacoLoading){
         return setTimeout(()=>loadMonacoEditor(code, filename, monacoLang), 250);
       }
 
-      // Load Monaco AMD loader scripts (we included the CSS above)
-      monacoLoaded = true;
+      // Load AMD loader (unpkg) and then require the editor
+      monacoLoading = true;
       var loaderScript = document.createElement('script');
       loaderScript.src = 'https://unpkg.com/monaco-editor@0.34.0/min/vs/loader.js';
       loaderScript.onload = function(){
-        // require is defined by loader; load editor.main then attach model
         require(['vs/editor/editor.main'], function () {
+          try{ monaco.editor.setTheme('vs-dark'); }catch(e){}
           try{
-            // set theme like your sample
-            try{ monaco.editor.setTheme('vs-dark'); }catch(e){}
             createModelAndAttach(code, monacoLang || 'plaintext');
           }catch(err){
             console.error('monaco init attach failed', err);
@@ -344,7 +329,8 @@
 
     // handle back/forward navigation
     window.addEventListener('popstate', () => {
-      const p = new URLSearchParams(location.search).get('p'); if(p) {
+      const p = new URLSearchParams(location.search).get('p');
+      if(p){
         const l = new URLSearchParams(location.search).get('lang');
         openProblem(p, l);
       } else showList();
