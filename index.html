@@ -5,43 +5,41 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Codeforces — Solutions Index</title>
   <style>
-    /* ====== CSS: Stylish clean layout ====== */
     :root{
-      --bg:#0f1724; --card:#0b1220; --muted:#94a3b8; --accent:#7c3aed; --glass: rgba(255,255,255,0.03);
+      --bg:#071226; --card:#0b1220; --muted:#94a3b8; --accent:#7c3aed; --glass: rgba(255,255,255,0.03);
       --mono: 'Menlo', 'Monaco', 'Consolas', monospace;
     }
-    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
-    body{background: linear-gradient(180deg,#071021 0%, #081225 60%); color:#e6eef6;}
-    .wrap{max-width:1100px;margin:32px auto;padding:24px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial}
+    body{background: linear-gradient(180deg,#061226 0%, #07122a 70%); color:#e6eef6;}
+    .wrap{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .brand{display:flex;align-items:center;gap:12px}
-    .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
+    .logo{width:46px;height:46px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
     h1{margin:0;font-size:20px}
     p.lead{margin:4px 0 0;color:var(--muted);font-size:13px}
 
     .controls{display:flex;gap:8px;align-items:center}
-    .search{padding:8px 12px;border-radius:10px;border:0;background:var(--card);color:inherit;min-width:220px}
+    .search{padding:8px 12px;border-radius:10px;border:0;background:var(--card);color:inherit;min-width:240px}
     .small{font-size:13px;color:var(--muted)}
 
-    /* table */
-    .table{margin-top:20px;border-radius:12px;overflow:hidden;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    .table{margin-top:18px;border-radius:12px;overflow:hidden;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
     table{width:100%;border-collapse:collapse}
     thead{background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));backdrop-filter: blur(6px)}
-    th,td{padding:14px 16px;text-align:left;font-size:14px}
+    th,td{padding:12px 14px;text-align:left;font-size:14px}
     th{font-weight:600;color:var(--muted)}
     tbody tr{border-top:1px solid rgba(255,255,255,0.02);transition:background .12s}
     tbody tr:hover{background:linear-gradient(90deg, rgba(255,255,255,0.02), transparent)}
 
     .tag{display:inline-block;padding:6px 8px;border-radius:8px;background:var(--glass);font-weight:600;font-size:13px}
-    .linkbtn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none}
+    .linkbtn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none;margin-right:6px}
 
-    /* layout for editor view */
+    /* editor view */
+    #editorView{display:none}
     .editor-container{height:calc(100vh - 120px);display:flex;flex-direction:column}
     .editor-header{display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(180deg,#061424 0%, #07182a 100%);border-bottom:1px solid rgba(255,255,255,0.03)}
     .editor-title{font-weight:600}
-    #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px}
+    #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px;background:#0b1220}
 
-    /* responsive */
     @media (max-width:760px){.wrap{padding:14px}.controls{flex-direction:column;align-items:stretch}.search{width:100%}}
   </style>
 </head>
@@ -56,7 +54,7 @@
         </div>
       </div>
       <div class="controls">
-        <input id="search" class="search" placeholder="Search by id, title, or tag..." />
+        <input id="search" class="search" placeholder="Search by id, title, or rating..." />
         <div class="small">Hosted: thepeeps191.github.io/codeforces</div>
       </div>
     </header>
@@ -66,128 +64,218 @@
         <div class="table">
           <table>
             <thead>
-              <tr><th style="width:120px">Problem</th><th>Title</th><th style="width:160px">Links</th></tr>
+              <tr>
+                <th style="width:120px">Problem</th>
+                <th>Title</th>
+                <th style="width:100px">Rating</th>
+                <th style="width:80px">Lang</th>
+                <th style="width:220px">Links</th>
+              </tr>
             </thead>
-            <tbody id="tbody"></tbody>
+            <tbody id="tbody">
+              <!-- populated by JS -->
+            </tbody>
           </table>
         </div>
       </div>
 
-      <div id="editorView" style="display:none">
+      <div id="editorView">
         <div class="editor-container">
           <div class="editor-header">
             <a href="/codeforces/" class="linkbtn" id="backBtn">← Back</a>
             <div class="editor-title" id="editorTitle">Loading...</div>
             <div style="margin-left:auto;color:var(--muted);font-size:13px" id="rawLinkWrap"></div>
           </div>
-          <div id="editor"> <!-- Monaco will mount here --> </div>
+          <div id="editor"> <!-- Monaco mounts here --> </div>
         </div>
       </div>
     </main>
   </div>
 
   <script>
-    // ====== Configuration ======
-    // Path to manifest and path prefix to source files
-    const MANIFEST = './problems.json'; // create this file in the repo root
-    const SOURCE_PREFIX = './Codeforces/'; // folder containing your .cpp files
+    // CONFIG
+    const MANIFEST = './problems.json'; // required in repo root
+    const SOURCE_PREFIX = './Codeforces/'; // folder with files like 891E.cpp
 
-    // Simple utilities
-    function el(tag,attrs={},text=''){const e=document.createElement(tag);for(let k in attrs)e.setAttribute(k,attrs[k]);if(text)e.textContent=text;return e}
+    // small helpers
+    function el(tag, attrs = {}, text = '') {
+      const e = document.createElement(tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      if (text) e.textContent = text;
+      return e;
+    }
+
+    // convert lang code to pretty display
+    function mapLangDisplay(lang){
+      if(!lang) return '';
+      const l = String(lang).toLowerCase();
+      if(l === 'cpp') return 'C++';
+      if(l === 'c') return 'C';
+      if(l === 'py' || l === 'python') return 'Python';
+      if(l === 'java') return 'Java';
+      if(l === 'js' || l === 'javascript') return 'JavaScript';
+      return lang;
+    }
+
+    // best-effort Codeforces link: split like 891E => 891 / E
+    function codeforcesLinkFromId(id){
+      if(!id) return 'https://codeforces.com';
+      const m = String(id).match(/^(\d+)([A-Za-z]+)$/);
+      if(m){
+        const contest = m[1];
+        const index = m[2];
+        return `https://codeforces.com/problemset/problem/${contest}/${index}`;
+      }
+      // fallback: try direct problemset URL
+      return `https://codeforces.com/problemset/problem/${id}`;
+    }
 
     let manifest = [];
 
-    // render table rows
+    // append a row for a manifest item
+    function appendRow(item){
+      const tbody = document.getElementById('tbody');
+      const tr = document.createElement('tr');
+
+      const td1 = document.createElement('td');
+      td1.innerHTML = `<div class="tag">${item.id}</div>`;
+
+      const td2 = document.createElement('td');
+      td2.textContent = item.title || '';
+
+      const tdRating = document.createElement('td');
+      tdRating.textContent = (typeof item.rating === 'number' ? item.rating : (item.rating || ''));
+
+      const tdLang = document.createElement('td');
+      tdLang.textContent = mapLangDisplay(item.lang || 'cpp');
+
+      const td3 = document.createElement('td');
+
+      // compute filename from id + '.' + lang (default 'cpp')
+      const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
+      const filename = `${item.id}.${lang}`;
+
+      const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}`, class: 'linkbtn' }, 'Open');
+      viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id); });
+
+      const cfLink = el('a', { href: codeforcesLinkFromId(item.id), target: '_blank', class: 'linkbtn' }, 'CF');
+
+      const fileLink = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Code');
+
+      td3.appendChild(viewLink);
+      td3.appendChild(cfLink);
+      td3.appendChild(fileLink);
+
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tr.appendChild(tdRating);
+      tr.appendChild(tdLang);
+      tr.appendChild(td3);
+      tbody.appendChild(tr);
+    }
+
+    // render table with optional text filter
     function renderTable(filter=''){
-      const tbody = document.getElementById('tbody'); tbody.innerHTML='';
-      const q = filter.trim().toLowerCase();
-      manifest.forEach(item=>{
-        const line = (item.id+' '+(item.title||'')+' '+(item.tags||'')).toLowerCase();
+      const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
+      const q = String(filter || '').trim().toLowerCase();
+      manifest.forEach(item => {
+        const line = (item.id + ' ' + (item.title || '') + ' ' + (item.rating || '') + ' ' + (item.lang || '')).toLowerCase();
         if(q && !line.includes(q)) return;
-        const tr = document.createElement('tr');
-        // problem id
-        const td1 = document.createElement('td'); td1.innerHTML=`<div class="tag">${item.id}</div>`;
-        const td2 = document.createElement('td'); td2.textContent = item.title || '';
-        const td3 = document.createElement('td');
-        const viewLink = el('a',{href:`?p=${encodeURIComponent(item.id)}`,class:'linkbtn'},'Open');
-        viewLink.addEventListener('click', (ev)=>{ev.preventDefault(); openProblem(item.id);} );
-        const cfLink = el('a',{href:`https://codeforces.com/problemset/problem/${item.id.replace(/([A-Za-z]+)$/,'/').replace(/(\d+)([A-Za-z]+)$/,'$1/$2')}`,target:'_blank',class:'linkbtn'},'CF');
-        // simpler: for link construct using numeric id and letter: but Codeforces uses contest/problemId and letter in separate parts; we'll generate best-effort link below
-        // fallback: if manifest has `contest` and `index` fields, use them
-        td3.appendChild(viewLink);
-        td3.appendChild(cfLink);
-        tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);
-        tbody.appendChild(tr);
+        appendRow(item);
       });
     }
 
     // open problem in editor view
     function openProblem(id){
-      history.replaceState(null,'',`?p=${encodeURIComponent(id)}`);
-      document.getElementById('listView').style.display='none';
-      document.getElementById('editorView').style.display='block';
+      history.replaceState(null, '', `?p=${encodeURIComponent(id)}`);
+      document.getElementById('listView').style.display = 'none';
+      document.getElementById('editorView').style.display = 'block';
+
       const titleEl = document.getElementById('editorTitle');
-      const item = manifest.find(x=>x.id===id) || {id};
-      titleEl.textContent = item.id + (item.title? ' — ' + item.title : '');
-      const rawLinkWrap = document.getElementById('rawLinkWrap'); rawLinkWrap.innerHTML='';
-      const rawA = el('a',{href: SOURCE_PREFIX + id + '.cpp',target:'_blank',class:'linkbtn'},'Open raw'); rawLinkWrap.appendChild(rawA);
-      // fetch code file and load into monaco
-      const path = SOURCE_PREFIX + id + '.cpp';
-      fetch(path).then(r=>{
-        if(!r.ok) throw new Error('File not found: '+path);
+      const item = manifest.find(x => x.id === id) || { id };
+      titleEl.textContent = item.id + (item.title ? ' — ' + item.title : '');
+
+      const rawLinkWrap = document.getElementById('rawLinkWrap'); rawLinkWrap.innerHTML = '';
+
+      const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
+      const filename = `${item.id}.${lang}`;
+      const rawA = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Open raw');
+      rawLinkWrap.appendChild(rawA);
+
+      const path = SOURCE_PREFIX + filename;
+      fetch(path).then(r => {
+        if(!r.ok) throw new Error('File not found: ' + path);
         return r.text();
-      }).then(code=>{
-        loadMonacoEditor(code, id + '.cpp');
-      }).catch(err=>{
-        loadMonacoEditor('// Could not load file: '+err.message+'\n', id + '.cpp');
+      }).then(code => {
+        // choose monaco language
+        let monacoLang = 'plaintext';
+        if(/^(c|cpp|c\+\+)$/.test(lang)) monacoLang = 'cpp';
+        else if(/^(py|python)$/.test(lang)) monacoLang = 'python';
+        else if(/^(java)$/.test(lang)) monacoLang = 'java';
+        else if(/^(js|javascript)$/.test(lang)) monacoLang = 'javascript';
+        else if(/^(ts|typescript)$/.test(lang)) monacoLang = 'typescript';
+        loadMonacoEditor(code, filename, monacoLang);
+      }).catch(err => {
+        loadMonacoEditor('// Could not load file: ' + err.message + '\n', filename, 'plaintext');
       });
     }
 
-    // go back
-    document.getElementById('backBtn').addEventListener('click', (ev)=>{ev.preventDefault(); history.pushState({},'', '/codeforces/'); showList(); });
-    function showList(){document.getElementById('editorView').style.display='none';document.getElementById('listView').style.display='block';history.replaceState(null,'','/codeforces/');}
+    // back button
+    document.getElementById('backBtn').addEventListener('click', (ev) => { ev.preventDefault(); history.pushState({}, '', '/codeforces/'); showList(); });
+    function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
 
-    // search
-    const searchInput = document.getElementById('search'); searchInput.addEventListener('input', ()=>renderTable(searchInput.value));
-
-    // fetch manifest
-    fetch(MANIFEST).then(r=>r.json()).then(data=>{manifest=data; renderTable(); // if url has p param open
+    // load manifest
+    fetch(MANIFEST).then(r => {
+      if(!r.ok) throw new Error('Could not load problems.json');
+      return r.json();
+    }).then(data => {
+      manifest = data || [];
+      renderTable();
+      // open ?p=...
       const params = new URLSearchParams(location.search); const p = params.get('p'); if(p) openProblem(p);
-    }).catch(e=>{
-      document.getElementById('tbody').innerHTML = '<tr><td colspan="3">Could not load problems.json — create it in repo root. See instructions.</td></tr>';
+    }).catch(e => {
+      document.getElementById('tbody').innerHTML = '<tr><td colspan="5">Could not load problems.json — create it in repo root. See instructions below.</td></tr>';
       console.error(e);
     });
 
-    /* ====== Monaco loader ======
-       We'll lazy-load Monaco from CDN when a file is opened. This keeps the index light.
-    */
+    // search input
+    const searchInput = document.getElementById('search');
+    searchInput.addEventListener('input', () => renderTable(searchInput.value));
+
+    // Monaco loader + editor
     let monacoLoaded = false;
-    function loadMonacoEditor(code, filename){
-      // if already loaded, just set value
-      if(window.editor){ window.editor.setValue(code); window.editor.updateOptions({readOnly:false}); return; }
-      if(monacoLoaded){ return setTimeout(()=>loadMonacoEditor(code, filename), 200); }
+    function loadMonacoEditor(code, filename, monacoLang){
+      if(window.editor){
+        window.editor.setValue(code);
+        try{ monaco.editor.setModelLanguage(window.editor.getModel(), monacoLang || 'cpp'); }catch(e){}
+        window.editor.updateOptions({ readOnly: false });
+        return;
+      }
+      if(monacoLoaded){ return setTimeout(() => loadMonacoEditor(code, filename, monacoLang), 200); }
       monacoLoaded = true;
       const loader = document.createElement('script');
       loader.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
-      loader.onload = ()=>{
+      loader.onload = () => {
         require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
           window.editor = monaco.editor.create(document.getElementById('editor'), {
             value: code,
-            language: 'cpp',
+            language: monacoLang || 'cpp',
             theme: 'vs-dark',
             automaticLayout: true,
             fontFamily: 'Monaco, Consolas, monospace',
             fontSize: 13,
-            minimap: {enabled:false}
+            minimap: { enabled: false }
           });
         });
       };
       document.body.appendChild(loader);
     }
 
-    // handle browser navigation
-    window.addEventListener('popstate', ()=>{ const p = new URLSearchParams(location.search).get('p'); if(p) openProblem(p); else showList(); });
+    // handle back/forward navigation
+    window.addEventListener('popstate', () => {
+      const p = new URLSearchParams(location.search).get('p'); if(p) openProblem(p); else showList();
+    });
 
   </script>
 </body>
