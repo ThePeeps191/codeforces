@@ -45,6 +45,16 @@
     .editor-title{font-weight:600}
     #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px;background:#0b1220; min-height:200px;}
 
+    /* loading text above editor (visible while Monaco loads) */
+    #loadingLine {
+      display:none;
+      text-align:left;
+      color:var(--muted);
+      font-size:13px;
+      margin: 10px 12px 0;
+      padding-left: 6px;
+    }
+
     /* Copy button */
     .copy-btn{
       margin-left:12px;
@@ -92,7 +102,7 @@
               <tr>
                 <th style="width:120px">Problem</th>
                 <th>Title</th>
-                <th id="ratingHeader" style="width:100px">Rating ▲</th>
+                <th id="ratingHeader" style="width:100px">Rating ▼</th>
                 <th style="width:80px">Lang</th>
                 <th style="width:220px">Links</th>
               </tr>
@@ -121,6 +131,10 @@
               </button>
             </div>
           </div>
+
+          <!-- loading line shown while Monaco loads -->
+          <div id="loadingLine">Code is loading...</div>
+
           <div id="editor" aria-label="code editor area"> <!-- Monaco mounts here --> </div>
         </div>
       </div>
@@ -162,9 +176,15 @@
       return `https://codeforces.com/problemset/problem/${id}`;
     }
 
+    function showLoading(on) {
+      const el = document.getElementById('loadingLine');
+      if (!el) return;
+      el.style.display = on ? 'block' : 'none';
+    }
+
     let manifest = [];
     // rating sort state: true = ascending, false = descending
-    let ratingSortAsc = true;
+    let ratingSortAsc = false; // default descending as requested
 
     function appendRow(item){
       const tbody = document.getElementById('tbody');
@@ -201,8 +221,8 @@
 
       // sort by rating; if rating missing or not number, treat as Infinity for ascending so they go to end
       items.sort((a,b) => {
-        const ra = typeof a.rating === 'number' ? a.rating : (a.rating ? Number(a.rating) : Infinity);
-        const rb = typeof b.rating === 'number' ? b.rating : (b.rating ? Number(b.rating) : Infinity);
+        let ra = typeof a.rating === 'number' ? a.rating : (a.rating ? Number(a.rating) : Infinity);
+        let rb = typeof b.rating === 'number' ? b.rating : (b.rating ? Number(b.rating) : Infinity);
         if (isNaN(ra)) ra = Infinity;
         if (isNaN(rb)) rb = Infinity;
         return ratingSortAsc ? (ra - rb) : (rb - ra);
@@ -236,6 +256,9 @@
       const rawA = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Open raw');
       rawLinkWrap.appendChild(rawA);
 
+      // show the loading line while we fetch + load Monaco
+      showLoading(true);
+
       const path = SOURCE_PREFIX + filename;
       fetch(path).then(r => {
         if(!r.ok) throw new Error('File not found: ' + path);
@@ -253,6 +276,7 @@
         setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
         setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} }, 400);
       }).catch(err => {
+        // fallback - show error text and hide loading line
         loadMonacoEditor('// Could not load file: ' + err.message + '\n', `${id}.${lang}`, 'plaintext');
         setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} }, 120);
       });
@@ -281,7 +305,7 @@
       return r.json();
     }).then(data => {
       manifest = data || [];
-      // initial header visual (ascending)
+      // initial header visual (descending by default)
       updateRatingHeaderVisual();
       renderTable();
 
@@ -331,12 +355,19 @@
             window.monacoEditor.setModel(model);
           }
 
+          // editor created and model attached — hide loading line
+          try{ showLoading(false); }catch(e){}
+
           try{ window.monacoEditor.layout(); }catch(e){}
           setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 60);
           setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 220);
         }catch(err){
           console.error('createModelAndAttach error', err);
-          try{ document.getElementById('editor').textContent = text; }catch(e){}
+          try{
+            document.getElementById('editor').textContent = text;
+            // hide loading line even on fallback
+            showLoading(false);
+          }catch(e){}
         }
       }
 
@@ -358,12 +389,14 @@
             console.error('monaco init attach failed', err);
             document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#dbeafe;padding:12px;">' +
               String(code).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
+            try{ showLoading(false); }catch(e){}
           }
         });
       };
       loaderScript.onerror = function(e){
         console.error('Failed to load Monaco loader', e);
         document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#fca5a5;padding:12px;">Failed to load editor.</pre>';
+        try{ showLoading(false); }catch(e){}
       };
       document.body.appendChild(loaderScript);
     }
