@@ -4,6 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Codeforces — Solutions Index</title>
+
+  <!-- Monaco CSS (from your StackOverflow example) -->
+  <link rel="stylesheet" data-name="vs/editor/editor.main"
+    href="https://unpkg.com/monaco-editor@0.34.0/min/vs/editor/editor.main.css" />
+
   <style>
     :root{
       --bg:#071226; --card:#0b1220; --muted:#94a3b8; --accent:#7c3aed; --glass: rgba(255,255,255,0.03);
@@ -92,6 +97,10 @@
     </main>
   </div>
 
+  <!--
+    We use the AMD loader approach from your StackOverflow sample (unpkg v0.34.0).
+    This ensures Monaco's styles and scripts are loaded in the same way.
+  -->
   <script>
     // CONFIG
     const MANIFEST = './problems.json'; // required in repo root
@@ -155,8 +164,8 @@
       const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
       const filename = `${item.id}.${lang}`;
 
-      const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}`, class: 'linkbtn' }, 'Open');
-      viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id); });
+      const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}&lang=${encodeURIComponent(lang)}`, class: 'linkbtn' }, 'Open');
+      viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id, lang); });
 
       const cfLink = el('a', { href: codeforcesLinkFromId(item.id), target: '_blank', class: 'linkbtn' }, 'CF');
 
@@ -186,8 +195,13 @@
     }
 
     // open problem in editor view (improved for Monaco)
-    function openProblem(id){
-      history.replaceState(null, '', `?p=${encodeURIComponent(id)}`);
+    function openProblem(id, overrideLang){
+      const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
+      const lang = overrideLang || new URLSearchParams(location.search).get('lang') || langFromManifest || 'cpp';
+
+      // update URL to include lang param explicitly
+      history.replaceState(null, '', `?p=${encodeURIComponent(id)}&lang=${encodeURIComponent(lang)}`);
+
       // show editor view first (so layout can measure)
       document.getElementById('listView').style.display = 'none';
       document.getElementById('editorView').style.display = 'block';
@@ -201,8 +215,7 @@
 
       const rawLinkWrap = document.getElementById('rawLinkWrap'); rawLinkWrap.innerHTML = '';
 
-      const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
-      const filename = `${item.id}.${lang}`;
+      const filename = `${id}.${lang}`;
       const rawA = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Open raw');
       rawLinkWrap.appendChild(rawA);
 
@@ -229,7 +242,7 @@
       });
     }
 
-    // back button
+    // back button wiring
     document.getElementById('backBtn').addEventListener('click', (ev) => { ev.preventDefault(); history.pushState({}, '', '/codeforces/'); showList(); });
     function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
 
@@ -241,7 +254,9 @@
       manifest = data || [];
       renderTable();
       // open ?p=...
-      const params = new URLSearchParams(location.search); const p = params.get('p'); if(p) openProblem(p);
+      const params = new URLSearchParams(location.search);
+      const p = params.get('p'); const l = params.get('lang');
+      if(p) openProblem(p, l);
     }).catch(e => {
       document.getElementById('tbody').innerHTML = '<tr><td colspan="5">Could not load problems.json — create it in repo root. See instructions below.</td></tr>';
       console.error(e);
@@ -251,7 +266,10 @@
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
 
-    // Monaco loader + editor (robust)
+    // === Monaco AMD loader config (from sample) ===
+    var require = { paths: { vs: 'https://unpkg.com/monaco-editor@0.34.0/min/vs' } };
+
+    // Monaco loader + editor (robust, builds on the sample)
     let monacoLoaded = false;
     function loadMonacoEditor(code, filename, monacoLang){
       // create or update the editor with a model — using models keeps language modes correct
@@ -288,8 +306,8 @@
         }
       }
 
+      // If Monaco already loaded and available, attach immediately
       if(window.editor && typeof monaco !== 'undefined'){
-        // Monaco already loaded: attach model directly
         createModelAndAttach(code, monacoLang || 'plaintext');
         return;
       }
@@ -299,35 +317,38 @@
         return setTimeout(()=>loadMonacoEditor(code, filename, monacoLang), 250);
       }
 
-      // Load AMD loader + monaco
+      // Load Monaco AMD loader scripts (we included the CSS above)
       monacoLoaded = true;
-      const loader = document.createElement('script');
-      loader.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
-      loader.onload = () => {
-        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs' } });
-        require(['vs/editor/editor.main'], function() {
+      var loaderScript = document.createElement('script');
+      loaderScript.src = 'https://unpkg.com/monaco-editor@0.34.0/min/vs/loader.js';
+      loaderScript.onload = function(){
+        // require is defined by loader; load editor.main then attach model
+        require(['vs/editor/editor.main'], function () {
           try{
+            // set theme like your sample
+            try{ monaco.editor.setTheme('vs-dark'); }catch(e){}
             createModelAndAttach(code, monacoLang || 'plaintext');
           }catch(err){
             console.error('monaco init attach failed', err);
-            // last resort: show plain text in a pre inside editor div
             document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#dbeafe;padding:12px;">' +
               String(code).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
           }
         });
       };
-      loader.onerror = function(e){
+      loaderScript.onerror = function(e){
         console.error('Failed to load Monaco loader', e);
         document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#fca5a5;padding:12px;">Failed to load editor.</pre>';
       };
-      document.body.appendChild(loader);
+      document.body.appendChild(loaderScript);
     }
 
     // handle back/forward navigation
     window.addEventListener('popstate', () => {
-      const p = new URLSearchParams(location.search).get('p'); if(p) openProblem(p); else showList();
+      const p = new URLSearchParams(location.search).get('p'); if(p) {
+        const l = new URLSearchParams(location.search).get('lang');
+        openProblem(p, l);
+      } else showList();
     });
-
   </script>
 </body>
 </html>
