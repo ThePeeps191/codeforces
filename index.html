@@ -185,11 +185,15 @@
       });
     }
 
-    // open problem in editor view
+    // open problem in editor view (improved for Monaco)
     function openProblem(id){
       history.replaceState(null, '', `?p=${encodeURIComponent(id)}`);
+      // show editor view first (so layout can measure)
       document.getElementById('listView').style.display = 'none';
       document.getElementById('editorView').style.display = 'block';
+
+      // make sure editor container can measure correctly
+      setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout failed', e);} }, 50);
 
       const titleEl = document.getElementById('editorTitle');
       const item = manifest.find(x => x.id === id) || { id };
@@ -214,9 +218,14 @@
         else if(/^(java)$/.test(lang)) monacoLang = 'java';
         else if(/^(js|javascript)$/.test(lang)) monacoLang = 'javascript';
         else if(/^(ts|typescript)$/.test(lang)) monacoLang = 'typescript';
+
         loadMonacoEditor(code, filename, monacoLang);
+
+        // ensure layout after loading content (small delay helps in many browsers)
+        setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
       }).catch(err => {
         loadMonacoEditor('// Could not load file: ' + err.message + '\n', filename, 'plaintext');
+        setTimeout(()=>{ try{ if(window.editor) window.editor.layout(); }catch(e){console.warn('layout err', e);} }, 120);
       });
     }
 
@@ -242,32 +251,74 @@
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
 
-    // Monaco loader + editor
+    // Monaco loader + editor (robust)
     let monacoLoaded = false;
     function loadMonacoEditor(code, filename, monacoLang){
-      if(window.editor){
-        window.editor.setValue(code);
-        try{ monaco.editor.setModelLanguage(window.editor.getModel(), monacoLang || 'cpp'); }catch(e){}
-        window.editor.updateOptions({ readOnly: false });
+      // create or update the editor with a model — using models keeps language modes correct
+      function createModelAndAttach(text, language){
+        try{
+          // create a stable URI per filename so model can be reused
+          const modelUri = monaco.Uri.parse('inmemory://model/' + filename);
+          let model = monaco.editor.getModel(modelUri);
+          if(model){
+            model.setValue(text);
+            try{ monaco.editor.setModelLanguage(model, language); }catch(e){}
+          } else {
+            model = monaco.editor.createModel(text, language, modelUri);
+          }
+          if(!window.editor){
+            window.editor = monaco.editor.create(document.getElementById('editor'), {
+              model: model,
+              language: language,
+              theme: 'vs-dark',
+              automaticLayout: true,
+              fontFamily: 'Monaco, Consolas, monospace',
+              fontSize: 13,
+              minimap: { enabled: false }
+            });
+          } else {
+            window.editor.setModel(model);
+          }
+          // ensure layout happens after attaching model
+          setTimeout(()=>{ try{ window.editor.layout(); }catch(e){} }, 60);
+        }catch(err){
+          console.error('createModelAndAttach error', err);
+          // fallback: set value directly if Monaco API partially available
+          try{ window.editor.setValue(text); }catch(e){}
+        }
+      }
+
+      if(window.editor && typeof monaco !== 'undefined'){
+        // Monaco already loaded: attach model directly
+        createModelAndAttach(code, monacoLang || 'plaintext');
         return;
       }
-      if(monacoLoaded){ return setTimeout(() => loadMonacoEditor(code, filename, monacoLang), 200); }
+
+      // If monaco is currently loading, wait and try again
+      if(monacoLoaded){
+        return setTimeout(()=>loadMonacoEditor(code, filename, monacoLang), 250);
+      }
+
+      // Load AMD loader + monaco
       monacoLoaded = true;
       const loader = document.createElement('script');
       loader.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
       loader.onload = () => {
         require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
-          window.editor = monaco.editor.create(document.getElementById('editor'), {
-            value: code,
-            language: monacoLang || 'cpp',
-            theme: 'vs-dark',
-            automaticLayout: true,
-            fontFamily: 'Monaco, Consolas, monospace',
-            fontSize: 13,
-            minimap: { enabled: false }
-          });
+          try{
+            createModelAndAttach(code, monacoLang || 'plaintext');
+          }catch(err){
+            console.error('monaco init attach failed', err);
+            // last resort: show plain text in a pre inside editor div
+            document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#dbeafe;padding:12px;">' +
+              String(code).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
+          }
         });
+      };
+      loader.onerror = function(e){
+        console.error('Failed to load Monaco loader', e);
+        document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#fca5a5;padding:12px;">Failed to load editor.</pre>';
       };
       document.body.appendChild(loader);
     }
