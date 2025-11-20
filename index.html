@@ -9,6 +9,10 @@
   <link rel="stylesheet" data-name="vs/editor/editor.main"
     href="https://unpkg.com/monaco-editor@0.34.0/min/vs/editor/editor.main.css" />
 
+  <!-- KaTeX for rendering math inside Solution (AAA...AAA) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+
   <style>
     :root{
       --bg:#071226; --card:#0b1220; --muted:#94a3b8; --accent:#7c3aed; --glass: rgba(255,255,255,0.03);
@@ -54,6 +58,17 @@
       margin: 10px 12px 0;
       padding-left: 6px;
     }
+
+    /* solution area */
+    #solutionWrap {
+      margin: 10px 12px 22px;
+      padding: 12px;
+      border-radius:8px;
+      background: rgba(255,255,255,0.02);
+    }
+    #solutionWrap h2 { margin: 0 0 8px 0; font-size:15px; color: #e6eef6; }
+    .solution-line { margin: 6px 0; color:#dbeafe; white-space: pre-wrap; font-size:14px; }
+    .solution-math { display:inline-block; vertical-align:middle; }
 
     /* Copy button */
     .copy-btn{
@@ -136,6 +151,13 @@
           <div id="loadingLine">Code is loading...</div>
 
           <div id="editor" aria-label="code editor area"> <!-- Monaco mounts here --> </div>
+
+          <!-- Solution block - NEW: displays sol from manifest (or fallback message) -->
+          <div id="solutionWrap" aria-live="polite">
+            <h2>Solution</h2>
+            <div id="solutionContent">Solution has not been created</div>
+          </div>
+
         </div>
       </div>
     </main>
@@ -235,6 +257,89 @@
       });
     }
 
+    // RENDER SOLUTION text from manifest item
+    // Accepts the manifest item (or null). Shows "Solution has not been created" when missing.
+    function renderSolutionForItem(item){
+      const out = document.getElementById('solutionContent');
+      if(!out) return;
+      out.innerHTML = ''; // clear
+
+      if(!item || !item.sol){
+        out.textContent = 'Solution has not been created';
+        return;
+      }
+
+      // Split by newline and render each line as its own block, parsing AAA...AAA into math
+      const sol = String(item.sol || '');
+      const lines = sol.split(/\r?\n/);
+
+      // regex to find AAA ... AAA (non-greedy, dotall)
+      const re = /AAA(.*?)AAA/gs;
+
+      lines.forEach(line => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'solution-line';
+
+        let lastIndex = 0;
+        let anyMatch = false;
+        let m;
+        while((m = re.exec(line)) !== null){
+          anyMatch = true;
+          const before = line.slice(lastIndex, m.index);
+          if(before) wrapper.appendChild(document.createTextNode(before));
+
+          const latexText = m[1];
+          const span = document.createElement('span');
+          span.className = 'solution-math';
+          span.setAttribute('data-latex', latexText);
+          wrapper.appendChild(span);
+
+          lastIndex = re.lastIndex;
+        }
+
+        if(!anyMatch){
+          wrapper.textContent = line;
+        } else {
+          const tail = line.slice(lastIndex);
+          if(tail) wrapper.appendChild(document.createTextNode(tail));
+        }
+
+        out.appendChild(wrapper);
+      });
+
+      // Render all math spans with KaTeX (inline)
+      function renderKatexSpans(){
+        const spans = document.querySelectorAll('#solutionContent .solution-math');
+        spans.forEach(s => {
+          const latex = s.getAttribute('data-latex') || '';
+          try {
+            katex.render(latex, s, { throwOnError: false, displayMode: false });
+          } catch(e){
+            s.textContent = latex;
+          }
+        });
+      }
+
+      if(window.katex){
+        renderKatexSpans();
+      } else {
+        // wait briefly for KaTeX to load (deferred), then render, with limited attempts
+        let attempts = 0;
+        const t = setInterval(() => {
+          attempts++;
+          if(window.katex){
+            clearInterval(t);
+            renderKatexSpans();
+          } else if(attempts > 30){
+            clearInterval(t);
+            // fallback: show raw latex text
+            const spans = document.querySelectorAll('#solutionContent .solution-math');
+            spans.forEach(s => { s.textContent = s.getAttribute('data-latex') || ''; });
+          }
+        }, 100);
+      }
+    }
+
     // open problem (ensures URL includes lang)
     function openProblem(id, overrideLang){
       const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
@@ -258,6 +363,10 @@
 
       // show the loading line while we fetch + load Monaco
       showLoading(true);
+
+      // render solution immediately from manifest (if manifest already loaded)
+      // If manifest not yet loaded, openProblem is called again after fetch in promise chain below
+      try { renderSolutionForItem(item); } catch(e){ console.warn('renderSolution immediate failed', e); }
 
       const path = SOURCE_PREFIX + filename;
       fetch(path).then(r => {
