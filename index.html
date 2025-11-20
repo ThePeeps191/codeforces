@@ -62,6 +62,9 @@
     .copy-btn svg{width:14px;height:14px;fill:currentColor}
     .copy-btn:active{transform:translateY(1px)}
 
+    /* rating header hover */
+    #ratingHeader { cursor: pointer; user-select: none; }
+
     @media (max-width:760px){.wrap{padding:14px}.controls{flex-direction:column;align-items:stretch}.search{width:100%}}
   </style>
 </head>
@@ -89,7 +92,7 @@
               <tr>
                 <th style="width:120px">Problem</th>
                 <th>Title</th>
-                <th style="width:100px">Rating</th>
+                <th id="ratingHeader" style="width:100px">Rating ▲</th>
                 <th style="width:80px">Lang</th>
                 <th style="width:220px">Links</th>
               </tr>
@@ -160,6 +163,8 @@
     }
 
     let manifest = [];
+    // rating sort state: true = ascending, false = descending
+    let ratingSortAsc = true;
 
     function appendRow(item){
       const tbody = document.getElementById('tbody');
@@ -175,13 +180,13 @@
       const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
       const filename = `${item.id}.${lang}`;
 
-      const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}&lang=${encodeURIComponent(lang)}`, class: 'linkbtn' }, 'Open');
+      // renamed "Open" -> "Solution" and removed "Code" link.
+      const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}&lang=${encodeURIComponent(lang)}`, class: 'linkbtn' }, 'Solution');
       viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id, lang); });
 
       const cfLink = el('a', { href: codeforcesLinkFromId(item.id), target: '_blank', class: 'linkbtn' }, 'CF');
-      const fileLink = el('a', { href: SOURCE_PREFIX + filename, target: '_blank', class: 'linkbtn' }, 'Code');
 
-      td3.appendChild(viewLink); td3.appendChild(cfLink); td3.appendChild(fileLink);
+      td3.appendChild(viewLink); td3.appendChild(cfLink);
 
       tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(tdRating); tr.appendChild(tdLang); tr.appendChild(td3);
       tbody.appendChild(tr);
@@ -190,16 +195,27 @@
     function renderTable(filter=''){
       const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
       const q = String(filter || '').trim().toLowerCase();
-      manifest.forEach(item => {
+
+      // create a copy to sort without mutating original manifest
+      const items = (manifest || []).slice();
+
+      // sort by rating; if rating missing or not number, treat as Infinity for ascending so they go to end
+      items.sort((a,b) => {
+        const ra = typeof a.rating === 'number' ? a.rating : (a.rating ? Number(a.rating) : Infinity);
+        const rb = typeof b.rating === 'number' ? b.rating : (b.rating ? Number(b.rating) : Infinity);
+        if (isNaN(ra)) ra = Infinity;
+        if (isNaN(rb)) rb = Infinity;
+        return ratingSortAsc ? (ra - rb) : (rb - ra);
+      });
+
+      items.forEach(item => {
         const line = (item.id + ' ' + (item.title || '') + ' ' + (item.rating || '') + ' ' + (item.lang || '')).toLowerCase();
         if(q && !line.includes(q)) return;
         appendRow(item);
       });
     }
 
-    function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
-    function showEditor(){ document.getElementById('listView').style.display = 'none'; document.getElementById('editorView').style.display = 'block'; }
-
+    // open problem (ensures URL includes lang)
     function openProblem(id, overrideLang){
       const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
       const lang = overrideLang || new URLSearchParams(location.search).get('lang') || langFromManifest || 'cpp';
@@ -242,8 +258,22 @@
       });
     }
 
+    function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
+    function showEditor(){ document.getElementById('listView').style.display = 'none'; document.getElementById('editorView').style.display = 'block'; }
+
     // back button
     document.getElementById('backBtn').addEventListener('click', (ev) => { ev.preventDefault(); history.pushState({}, '', '/codeforces/'); showList(); });
+
+    // rating header toggling
+    const ratingHeader = document.getElementById('ratingHeader');
+    function updateRatingHeaderVisual(){
+      ratingHeader.textContent = 'Rating ' + (ratingSortAsc ? '▲' : '▼');
+    }
+    ratingHeader.addEventListener('click', () => {
+      ratingSortAsc = !ratingSortAsc;
+      updateRatingHeaderVisual();
+      renderTable(document.getElementById('search').value);
+    });
 
     // load manifest
     fetch(MANIFEST).then(r => {
@@ -251,6 +281,8 @@
       return r.json();
     }).then(data => {
       manifest = data || [];
+      // initial header visual (ascending)
+      updateRatingHeaderVisual();
       renderTable();
 
       const params = new URLSearchParams(location.search);
