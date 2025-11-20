@@ -1,5 +1,5 @@
 [
-  {"id":"4A","title":"Watermelon","rating":800,"lang":"cpp"},
+  {"id":"4A","title":"Watermelon","rating":800,"lang":"cpp","sol":"test\nIt suffices to check whether n is greater than 2 and divisible by 2.\nAAApref[i] = pref[i - 1] + a[i]AAA"},
   {"id":"71A","title":"Way Too Long Words","rating":800,"lang":"cpp"},
   {"id":"1A","title":"Theatre Square","rating":1000,"lang":"cpp"}
 ]
