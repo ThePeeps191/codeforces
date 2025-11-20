@@ -45,6 +45,23 @@
     .editor-title{font-weight:600}
     #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px;background:#0b1220; min-height:200px;}
 
+    /* Copy button */
+    .copy-btn{
+      margin-left:12px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.04);
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:13px;
+    }
+    .copy-btn svg{width:14px;height:14px;fill:currentColor}
+    .copy-btn:active{transform:translateY(1px)}
+
     @media (max-width:760px){.wrap{padding:14px}.controls{flex-direction:column;align-items:stretch}.search{width:100%}}
   </style>
 </head>
@@ -89,7 +106,17 @@
           <div class="editor-header">
             <a href="/codeforces/" class="linkbtn" id="backBtn">← Back</a>
             <div class="editor-title" id="editorTitle">Loading...</div>
-            <div style="margin-left:auto;color:var(--muted);font-size:13px" id="rawLinkWrap"></div>
+
+            <!-- right-side controls: raw link then copy button -->
+            <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+              <div id="rawLinkWrap" style="color:var(--muted);font-size:13px"></div>
+
+              <button id="copyBtn" class="copy-btn" title="Copy code to clipboard" aria-label="Copy code">
+                <!-- clipboard icon -->
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h-1.5l-.71-.71A.99.99 0 0 0 13.09 3H10.9c-.26 0-.52.1-.71.29L9.5 4H8c-1.1 0-2 .9-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6c0-1.1-.9-2-2-2zm-4 0h-2v2h2V4z"/></svg>
+                <span id="copyLabel">Copy code</span>
+              </button>
+            </div>
           </div>
           <div id="editor" aria-label="code editor area"> <!-- Monaco mounts here --> </div>
         </div>
@@ -99,8 +126,8 @@
 
   <script>
     // CONFIG
-    const MANIFEST = './problems.json'; // required in repo root
-    const SOURCE_PREFIX = './Codeforces/'; // folder with files like 4A.cpp
+    const MANIFEST = './problems.json';
+    const SOURCE_PREFIX = './Codeforces/';
 
     // helpers
     function el(tag, attrs = {}, text = '') {
@@ -170,11 +197,9 @@
       });
     }
 
-    // show/hide helpers
     function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
     function showEditor(){ document.getElementById('listView').style.display = 'none'; document.getElementById('editorView').style.display = 'block'; }
 
-    // open problem (ensures URL includes lang)
     function openProblem(id, overrideLang){
       const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
       const lang = overrideLang || new URLSearchParams(location.search).get('lang') || langFromManifest || 'cpp';
@@ -183,7 +208,6 @@
 
       showEditor();
 
-      // schedule layout attempt in case editor already exists
       setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout failed', e);} }, 50);
 
       const titleEl = document.getElementById('editorTitle');
@@ -208,21 +232,20 @@
         else if(/^(js|javascript)$/.test(lang)) monacoLang = 'javascript';
         else if(/^(ts|typescript)$/.test(lang)) monacoLang = 'typescript';
 
-        loadMonacoEditor(code, filename, monacoLang);
+        loadMonacoEditor(code, `${id}.${lang}`, monacoLang);
 
-        // ensure layout after loading content (multiple attempts to be safe)
         setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
-        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){ } }, 400);
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} }, 400);
       }).catch(err => {
-        loadMonacoEditor('// Could not load file: ' + err.message + '\n', filename, 'plaintext');
-        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){ } }, 120);
+        loadMonacoEditor('// Could not load file: ' + err.message + '\n', `${id}.${lang}`, 'plaintext');
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} }, 120);
       });
     }
 
-    // wire back
+    // back button
     document.getElementById('backBtn').addEventListener('click', (ev) => { ev.preventDefault(); history.pushState({}, '', '/codeforces/'); showList(); });
 
-    // load manifest and possibly open ?p param
+    // load manifest
     fetch(MANIFEST).then(r => {
       if(!r.ok) throw new Error('Could not load problems.json');
       return r.json();
@@ -233,7 +256,6 @@
       const params = new URLSearchParams(location.search);
       const p = params.get('p'); const l = params.get('lang');
 
-      // Delay opening slightly on initial load — prevents creating Monaco while container not fully painted
       if(p){
         setTimeout(()=> openProblem(p, l), 180);
       }
@@ -242,14 +264,14 @@
       console.error(e);
     });
 
-    // search
+    // search handling
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
 
-    // === AMD loader config for Monaco ===
+    // AMD loader config for Monaco
     var require = { paths: { vs: 'https://unpkg.com/monaco-editor@0.34.0/min/vs' } };
 
-    // robust loader & model attach
+    // robust loader & attach (creates monacoEditor)
     let monacoLoading = false;
     function loadMonacoEditor(code, filename, monacoLang){
       function createModelAndAttach(text, language){
@@ -263,7 +285,6 @@
             model = monaco.editor.createModel(text, language, modelUri);
           }
 
-          // If monacoEditor doesn't exist, create it; otherwise set model
           if(!window.monacoEditor || typeof window.monacoEditor.getModel !== 'function'){
             window.monacoEditor = monaco.editor.create(document.getElementById('editor'), {
               model: model,
@@ -278,7 +299,6 @@
             window.monacoEditor.setModel(model);
           }
 
-          // Ensure layout — multiple times with delays to handle browsers that need additional reflow
           try{ window.monacoEditor.layout(); }catch(e){}
           setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 60);
           setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 220);
@@ -288,7 +308,6 @@
         }
       }
 
-      // If Monaco API is ready, attach immediately
       if(typeof monaco !== 'undefined' && typeof monaco.editor !== 'undefined'){
         try{ createModelAndAttach(code, monacoLang || 'plaintext'); return; }catch(e){ console.warn('attach immediate failed', e); }
       }
@@ -317,17 +336,45 @@
       document.body.appendChild(loaderScript);
     }
 
-    // layout on window resize
+    // copy button logic
+    const copyBtn = document.getElementById('copyBtn');
+    const copyLabel = document.getElementById('copyLabel');
+    copyBtn.addEventListener('click', async () => {
+      let text = '';
+      try{
+        if(window.monacoEditor && typeof window.monacoEditor.getModel === 'function'){
+          const model = window.monacoEditor.getModel();
+          if(model) text = model.getValue();
+        }
+        // fallback: if editor div contains a <pre> or textContent
+        if(!text){
+          const ed = document.getElementById('editor');
+          // prefer pre child
+          const pre = ed.querySelector('pre');
+          text = pre ? pre.textContent : ed.textContent || '';
+        }
+        if(!text) throw new Error('No code found to copy');
+        await navigator.clipboard.writeText(text);
+        copyLabel.textContent = 'Copied!';
+        copyBtn.style.color = 'white';
+        setTimeout(()=>{ copyLabel.textContent = 'Copy code'; copyBtn.style.color = ''; }, 1600);
+      }catch(err){
+        console.error('copy failed', err);
+        copyLabel.textContent = 'Copy failed';
+        setTimeout(()=>{ copyLabel.textContent = 'Copy code'; }, 1600);
+      }
+    });
+
+    // layout triggers
     window.addEventListener('resize', ()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} });
 
-    // observe when editorView becomes visible — if monacoEditor is present, layout it
     const editorView = document.getElementById('editorView');
     const mo = new MutationObserver(() => {
       try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){}
     });
     mo.observe(editorView, { attributes: true, attributeFilter: ['style', 'class'], subtree: false });
 
-    // handle back/forward navigation
+    // handle popstate
     window.addEventListener('popstate', () => {
       const p = new URLSearchParams(location.search).get('p');
       if(p){
