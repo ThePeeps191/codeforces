@@ -43,7 +43,7 @@
     .editor-container{height:calc(100vh - 120px);display:flex;flex-direction:column}
     .editor-header{display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(180deg,#061424 0%, #07182a 100%);border-bottom:1px solid rgba(255,255,255,0.03)}
     .editor-title{font-weight:600}
-    #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px;background:#0b1220}
+    #editor{flex:1;border-radius:8px;overflow:hidden;margin:12px;background:#0b1220; min-height:200px;}
 
     @media (max-width:760px){.wrap{padding:14px}.controls{flex-direction:column;align-items:stretch}.search{width:100%}}
   </style>
@@ -102,7 +102,7 @@
     const MANIFEST = './problems.json'; // required in repo root
     const SOURCE_PREFIX = './Codeforces/'; // folder with files like 4A.cpp
 
-    // small helpers
+    // helpers
     function el(tag, attrs = {}, text = '') {
       const e = document.createElement(tag);
       for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -110,7 +110,6 @@
       return e;
     }
 
-    // pretty language mapping
     function mapLangDisplay(lang){
       if(!lang) return '';
       const l = String(lang).toLowerCase();
@@ -122,7 +121,6 @@
       return lang;
     }
 
-    // best-effort Codeforces link
     function codeforcesLinkFromId(id){
       if(!id) return 'https://codeforces.com';
       const m = String(id).match(/^(\d+)([A-Za-z]+)$/);
@@ -136,7 +134,6 @@
 
     let manifest = [];
 
-    // append a row for a manifest item
     function appendRow(item){
       const tbody = document.getElementById('tbody');
       const tr = document.createElement('tr');
@@ -151,7 +148,6 @@
       const lang = (item.lang || 'cpp').toString().replace(/^\.+/, '');
       const filename = `${item.id}.${lang}`;
 
-      // include lang in url explicitly
       const viewLink = el('a', { href: `?p=${encodeURIComponent(item.id)}&lang=${encodeURIComponent(lang)}`, class: 'linkbtn' }, 'Open');
       viewLink.addEventListener('click', (ev) => { ev.preventDefault(); openProblem(item.id, lang); });
 
@@ -164,7 +160,6 @@
       tbody.appendChild(tr);
     }
 
-    // render table with optional text filter
     function renderTable(filter=''){
       const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
       const q = String(filter || '').trim().toLowerCase();
@@ -175,19 +170,20 @@
       });
     }
 
-    // open problem in editor view (uses window.monacoEditor)
+    // show/hide helpers
+    function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
+    function showEditor(){ document.getElementById('listView').style.display = 'none'; document.getElementById('editorView').style.display = 'block'; }
+
+    // open problem (ensures URL includes lang)
     function openProblem(id, overrideLang){
       const langFromManifest = (manifest.find(x => x.id === id) || {}).lang || 'cpp';
       const lang = overrideLang || new URLSearchParams(location.search).get('lang') || langFromManifest || 'cpp';
 
-      // update URL to include lang param explicitly
       history.replaceState(null, '', `?p=${encodeURIComponent(id)}&lang=${encodeURIComponent(lang)}`);
 
-      // show editor view first (so layout can measure)
-      document.getElementById('listView').style.display = 'none';
-      document.getElementById('editorView').style.display = 'block';
+      showEditor();
 
-      // try to layout the monaco editor after it's visible
+      // schedule layout attempt in case editor already exists
       setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout failed', e);} }, 50);
 
       const titleEl = document.getElementById('editorTitle');
@@ -205,7 +201,6 @@
         if(!r.ok) throw new Error('File not found: ' + path);
         return r.text();
       }).then(code => {
-        // choose monaco language
         let monacoLang = 'plaintext';
         if(/^(c|cpp|c\+\+)$/.test(lang)) monacoLang = 'cpp';
         else if(/^(py|python)$/.test(lang)) monacoLang = 'python';
@@ -215,46 +210,48 @@
 
         loadMonacoEditor(code, filename, monacoLang);
 
-        // ensure layout after loading content (small delay helps)
+        // ensure layout after loading content (multiple attempts to be safe)
         setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout after load failed', e);} }, 120);
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){ } }, 400);
       }).catch(err => {
         loadMonacoEditor('// Could not load file: ' + err.message + '\n', filename, 'plaintext');
-        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){console.warn('layout err', e);} }, 120);
+        setTimeout(()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){ } }, 120);
       });
     }
 
-    // back button wiring
+    // wire back
     document.getElementById('backBtn').addEventListener('click', (ev) => { ev.preventDefault(); history.pushState({}, '', '/codeforces/'); showList(); });
-    function showList(){ document.getElementById('editorView').style.display = 'none'; document.getElementById('listView').style.display = 'block'; history.replaceState(null, '', '/codeforces/'); }
 
-    // load manifest
+    // load manifest and possibly open ?p param
     fetch(MANIFEST).then(r => {
       if(!r.ok) throw new Error('Could not load problems.json');
       return r.json();
     }).then(data => {
       manifest = data || [];
       renderTable();
-      // open ?p=...
+
       const params = new URLSearchParams(location.search);
       const p = params.get('p'); const l = params.get('lang');
-      if(p) openProblem(p, l);
+
+      // Delay opening slightly on initial load — prevents creating Monaco while container not fully painted
+      if(p){
+        setTimeout(()=> openProblem(p, l), 180);
+      }
     }).catch(e => {
       document.getElementById('tbody').innerHTML = '<tr><td colspan="5">Could not load problems.json — create it in repo root. See instructions below.</td></tr>';
       console.error(e);
     });
 
-    // search input
+    // search
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', () => renderTable(searchInput.value));
 
-    // === Monaco AMD loader config (stackOverflow style) ===
-    // define require paths for AMD loader (used by loader.js)
+    // === AMD loader config for Monaco ===
     var require = { paths: { vs: 'https://unpkg.com/monaco-editor@0.34.0/min/vs' } };
 
-    // Monaco loader + editor (robust, creates named models and avoids clobbering DOM)
+    // robust loader & model attach
     let monacoLoading = false;
     function loadMonacoEditor(code, filename, monacoLang){
-      // inner helper: create or attach model and create/attach the editor instance
       function createModelAndAttach(text, language){
         try{
           const modelUri = monaco.Uri.parse('inmemory://model/' + filename);
@@ -266,8 +263,8 @@
             model = monaco.editor.createModel(text, language, modelUri);
           }
 
+          // If monacoEditor doesn't exist, create it; otherwise set model
           if(!window.monacoEditor || typeof window.monacoEditor.getModel !== 'function'){
-            // create monacoEditor instance and attach model
             window.monacoEditor = monaco.editor.create(document.getElementById('editor'), {
               model: model,
               language: language,
@@ -281,39 +278,32 @@
             window.monacoEditor.setModel(model);
           }
 
-          // ensure layout after attach
+          // Ensure layout — multiple times with delays to handle browsers that need additional reflow
+          try{ window.monacoEditor.layout(); }catch(e){}
           setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 60);
+          setTimeout(()=>{ try{ window.monacoEditor.layout(); }catch(e){} }, 220);
         }catch(err){
           console.error('createModelAndAttach error', err);
           try{ document.getElementById('editor').textContent = text; }catch(e){}
         }
       }
 
-      // If monaco is already loaded (and we have the API), attach immediately
+      // If Monaco API is ready, attach immediately
       if(typeof monaco !== 'undefined' && typeof monaco.editor !== 'undefined'){
-        try{
-          createModelAndAttach(code, monacoLang || 'plaintext');
-          return;
-        }catch(e){
-          console.warn('attach immediate failed, proceeding to loader', e);
-        }
+        try{ createModelAndAttach(code, monacoLang || 'plaintext'); return; }catch(e){ console.warn('attach immediate failed', e); }
       }
 
-      // If loader in progress, wait and retry
       if(monacoLoading){
         return setTimeout(()=>loadMonacoEditor(code, filename, monacoLang), 250);
       }
 
-      // Load AMD loader (unpkg) and then require the editor
       monacoLoading = true;
       var loaderScript = document.createElement('script');
       loaderScript.src = 'https://unpkg.com/monaco-editor@0.34.0/min/vs/loader.js';
       loaderScript.onload = function(){
         require(['vs/editor/editor.main'], function () {
           try{ monaco.editor.setTheme('vs-dark'); }catch(e){}
-          try{
-            createModelAndAttach(code, monacoLang || 'plaintext');
-          }catch(err){
+          try{ createModelAndAttach(code, monacoLang || 'plaintext'); }catch(err){
             console.error('monaco init attach failed', err);
             document.getElementById('editor').innerHTML = '<pre style="white-space:pre-wrap;color:#dbeafe;padding:12px;">' +
               String(code).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>';
@@ -326,6 +316,16 @@
       };
       document.body.appendChild(loaderScript);
     }
+
+    // layout on window resize
+    window.addEventListener('resize', ()=>{ try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){} });
+
+    // observe when editorView becomes visible — if monacoEditor is present, layout it
+    const editorView = document.getElementById('editorView');
+    const mo = new MutationObserver(() => {
+      try{ if(window.monacoEditor && typeof window.monacoEditor.layout === 'function') window.monacoEditor.layout(); }catch(e){}
+    });
+    mo.observe(editorView, { attributes: true, attributeFilter: ['style', 'class'], subtree: false });
 
     // handle back/forward navigation
     window.addEventListener('popstate', () => {
